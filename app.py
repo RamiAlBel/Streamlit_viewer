@@ -9,6 +9,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, Normalize
 import streamlit as st
+from huggingface_hub.errors import EntryNotFoundError
 
 st.set_page_config(page_title='ipole_abc movies v2', layout='wide')
 
@@ -38,7 +39,10 @@ DISCRETE = {'inside_isco', 'n_pre', 'n_on', 'nf'}
 
 def fetch(path):
     if LOCAL:
-        return os.path.join(LOCAL, path)
+        p = os.path.join(LOCAL, path)
+        if not os.path.exists(p):
+            raise FileNotFoundError(p)
+        return p
     from huggingface_hub import hf_hub_download
     return hf_hub_download(REPO, path, repo_type='dataset', token=TOKEN)
 
@@ -170,7 +174,11 @@ def viewer():
     mid = st.session_state.mid
     st.html(params_html(df.loc[mid]))
     with st.spinner(f'loading movie {mid}'):
-        st.image(movie_png(mid, scale, stokes, log), width='stretch')
+        try:
+            png = movie_png(mid, scale, stokes, log)
+        except (FileNotFoundError, EntryNotFoundError):
+            st.info(f'movie {mid} is not online yet (the upload may still be running)'); return
+    st.image(png, width='stretch')
 
 
 def distributions():
