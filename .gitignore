@@ -4,3 +4,5 @@ web_data/
 .streamlit/secrets.toml
 __pycache__/
 hf_stage/
+upload.log
+commit_rest.log

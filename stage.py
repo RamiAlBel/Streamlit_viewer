@@ -5,6 +5,7 @@
                         results/<run>/ (no checkpoints), results_params/ (no checkpoints), run_status.csv,
                         test_arrays/<tag>/{A,B,C}.npy + test_g.npy (global frame index of each row of A, C)
                         + test_m.npy (movie row of each row of B); same row order as results/<run>/test_pred.npy / test_B.npy
+                        web/B_summary.csv: the disk-recovery table of notebook Section 1.8 (needs every test_B.npy in full)
 
 Re-running only adds or refreshes what changed (e.g. ML runs that finished since).
 """
@@ -75,4 +76,19 @@ for tag, src in TAGS.items():
         np.save(dst + '.tmp.npy', np.load(f'{src}/{name}.npy', mmap_mode='r')[idx])
         os.replace(dst + '.tmp.npy', dst)
         print(tag, name, np.load(dst, mmap_mode='r').shape, flush=True)
+
+# ml: Section 1.8 table, B-hat of the method-4 / 5 runs against the true disk over all test movies (median over movies)
+rows = {}
+for r in sorted(os.listdir(f'{ML}/results')):
+    p = r.split('_'); tag = '_'.join(p[2:]) or 'none'
+    if p[0] not in ('opt4', 'opt5') or not os.path.exists(f'{ML}/results/{r}/test_B.npy'):
+        continue
+    bh = np.load(f'{ML}/results/{r}/test_B.npy').astype(np.float32); b = np.load(f'{OUT}/ml/test_arrays/{tag}/B.npy', mmap_mode='r')[:, 0].astype(np.float32)
+    s = pd.read_csv(f'{TAGS[tag]}/movies.csv').scale.to_numpy()[test_m]; e = bh - b
+    rows[r] = {'tag': tag, 'relL2 of B̂ (median)': np.median(np.linalg.norm(e, axis=(1, 2)) / np.linalg.norm(b, axis=(1, 2))),
+               '|B̂−B| [µJy/px] (median)': np.median(np.abs(e).mean((1, 2)) * s * 1e6),
+               'Σ(B̂−B) [mJy] (median)': np.median(e.sum((1, 2)) * s * 1e3), 'mean B [µJy/px]': np.median(b.mean((1, 2)) * s * 1e6)}
+os.makedirs(f'{OUT}/ml/web', exist_ok=True)
+pd.DataFrame(rows).T.rename_axis('run').to_csv(f'{OUT}/ml/web/B_summary.csv')
+print('B_summary:', len(rows), 'runs')
 print('staged', sum(len(fs) for _, _, fs in os.walk(OUT)), 'files')

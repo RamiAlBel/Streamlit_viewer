@@ -1,21 +1,19 @@
-"""Streamlit viewer for the ipole_abc ADAF hot-spot movie dataset v2 (port of viewer.ipynb, sections 1-2).
+"""Streamlit viewer for the ipole_abc ADAF hot-spot movie dataset v2 and its ML results (port of viewer.ipynb; ML pages in ml.py).
 
-Data: a Hugging Face dataset repo (HF_REPO, read with HF_TOKEN) holding params.csv and samples/<id>.npz written by convert.py.
-For local testing set ABC_DATA_DIR to a folder with the same layout instead.
+Data: a private Hugging Face dataset repo (HF_REPO, read with HF_TOKEN) with dataset/ and ml/ as staged by stage.py.
+For local testing set ABC_DATA_DIR to a folder with the same layout instead (e.g. hf_stage/).
 """
-import io, os
+import io
 import numpy as np, pandas as pd, matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, Normalize
 import streamlit as st
 from huggingface_hub.errors import EntryNotFoundError
+from store import exists, fetch
 
 st.set_page_config(page_title='ipole_abc movies v2', layout='wide')
 
-LOCAL = os.environ.get('ABC_DATA_DIR')
-REPO = os.environ.get('HF_REPO', '')
-TOKEN = os.environ.get('HF_TOKEN')
 FOV = 32.0                                         # M
 EXT = [-FOV / 2, FOV / 2, -FOV / 2, FOV / 2]
 
@@ -35,16 +33,6 @@ ALL = [k for rows in GROUPS.values() for k, _, _ in rows]
 DEFAULT = ['a', 'inc', 'ne5', 'th5', 'b5', 'ne_slope', 'r_spot', 'th_spot', 'diam', 'K', 'f_n', 'f_T', 'f_B', 'FA_mean', 'share']
 LOG = {'ne5', 'th5', 'b5', 'f_n', 'f_T', 'f_B', 'FC_mean', 'share', 'FB', 'R', 'P_min', 'cadence_min'}
 DISCRETE = {'inside_isco', 'n_pre', 'n_on', 'nf'}
-
-
-def fetch(path):
-    if LOCAL:
-        p = os.path.join(LOCAL, path)
-        if not os.path.exists(p):
-            raise FileNotFoundError(p)
-        return p
-    from huggingface_hub import hf_hub_download
-    return hf_hub_download(REPO, path, repo_type='dataset', token=TOKEN)
 
 
 @st.cache_data
@@ -163,6 +151,8 @@ def viewer():
     c2.number_input('go to id', min_value=0, max_value=int(max(ids)), step=1, key='box', on_change=_box)
     if st.session_state.box not in df.index:
         c2.caption(f'id {st.session_state.box} is not in the dataset')
+        if exists(f'dataset/failures/{st.session_state.box}.txt'):
+            st.warning(f'id {st.session_state.box} failed: ' + open(fetch(f'dataset/failures/{st.session_state.box}.txt')).read().strip())
     c1, c2, c3, _ = st.columns([1, 1, 1, 3])
     scale = c1.radio('scale', ['shared', 'per row'], horizontal=True)
     stokes = 'IQU'.index(c2.radio('Stokes', ['I', 'Q', 'U'], horizontal=True))
@@ -197,5 +187,14 @@ def distributions():
 
 st.title('ipole_abc ADAF hot-spot movies (v2)')
 st.caption('Sgr A*, 230 GHz, Kerr; each movie rendered as A = disk + hot spot, B = disk only, C = hot spot only.')
-page = st.sidebar.radio('page', ['Movie viewer', 'Parameter distributions'])
-viewer() if page == 'Movie viewer' else distributions()
+ML_PAGES = ['ML · overview and runs', 'ML 1 · task 1 scores', 'ML 1 · task 1 movies and angles', 'ML 2 · task 2 parameters',
+            'ML 3 · blurred movies']
+page = st.sidebar.radio('page', ['Movie viewer', 'Parameter distributions'] + ML_PAGES)
+if page == 'Movie viewer':
+    viewer()
+elif page == 'Parameter distributions':
+    distributions()
+else:
+    with st.spinner('loading the ML results (first visit only)'):
+        import ml
+    ml.PAGES[page]()
