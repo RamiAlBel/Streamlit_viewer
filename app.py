@@ -49,16 +49,13 @@ def fetch(path):
 
 @st.cache_data
 def load_params():
-    return pd.read_csv(fetch('params.csv')).set_index('id').sort_index()
+    return pd.read_csv(fetch('dataset/dataset_params.csv')).drop(columns=['cmd']).set_index('id').sort_index()
 
 
 @st.cache_data(max_entries=64)
 def load_movie(mid):
-    with np.load(fetch(f'samples/{mid}.npz')) as d:
-        s = float(d['scale'])
-        m = {k: d[k].astype(np.float32) * s for k in 'ABC'}
-        m.update({k: d[k] for k in ('t_min', 'n0_on', 'FA', 'FC')})
-    return m
+    with np.load(fetch(f'dataset/samples/{mid}.npz')) as d:
+        return {k: d[k] for k in ('A', 'B', 'C', 't_min', 'n0_on', 'FA', 'FC')}
 
 
 def params_html(p):
