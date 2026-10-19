@@ -6,3 +6,4 @@ __pycache__/
 hf_stage/
 upload.log
 commit_rest.log
+.venv311/

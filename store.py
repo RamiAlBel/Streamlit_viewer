@@ -49,7 +49,7 @@ def _header(path):
     """shape, dtype and data offset of a .npy file in the repo"""
     with _fs().open(f'datasets/{REPO}/{path}', 'rb', block_size=2 ** 16) as f:
         v = npf.read_magic(f)
-        shape, fortran, dt = npf._read_array_header(f, v)
+        shape, fortran, dt = npf.read_array_header_1_0(f) if v == (1, 0) else npf.read_array_header_2_0(f)
         return shape, dt, f.tell()
 
 
